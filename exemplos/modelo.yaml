@@ -1,0 +1,92 @@
+nome: Nome da sua API
+urlBase: http://localhost:8080
+tempoLimiteMs: 5000
+
+variaveis:
+  email: "usuario-${aleatorio}@teste.com"
+  senha: Senha123
+
+cabecalhos:
+  Accept: application/json
+
+cenarios:
+  - nome: Autenticação
+    tags: [rapido]
+    passos:
+      - nome: Criar conta
+        metodo: POST
+        caminho: /api/auth/registrar
+        corpo:
+          nome: Usuário de Teste
+          email: ${email}
+          senha: ${senha}
+        espera:
+          status: [200, 201]
+
+      - nome: Entrar
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${email}
+          senha: ${senha}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.token
+              existe: true
+        capturar:
+          token: $.token
+
+  - nome: Cadastro de um recurso
+    passos:
+      - nome: Criar
+        metodo: POST
+        caminho: /api/recursos
+        token: ${token}
+        corpo:
+          nome: Primeiro recurso
+        espera:
+          status: 201
+          corpo:
+            - caminho: $.id
+              tipo: numero
+        capturar:
+          idRecurso: $.id
+
+      - nome: Consultar o que foi criado
+        caminho: /api/recursos/${idRecurso}
+        token: ${token}
+        espera:
+          status: 200
+          tempoMaximoMs: 500
+          corpo:
+            - caminho: $.nome
+              igual: Primeiro recurso
+
+      - nome: Dados inválidos são recusados
+        metodo: POST
+        caminho: /api/recursos
+        token: ${token}
+        corpo:
+          nome: ""
+        espera:
+          status: 400
+
+  - nome: Desempenho
+    tags: [carga]
+    passos:
+      - nome: 100 consultas com 5 usuários ao mesmo tempo
+        caminho: /api/recursos
+        token: ${token}
+        repetir: 100
+        concorrencia: 5
+        espera:
+          status: 200
+          p95MaximoMs: 800
+
+seguranca:
+  rotasProtegidas:
+    - GET /api/recursos
+    - POST /api/recursos
+  cabecalhos:
+    caminho: /api/recursos

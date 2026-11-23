@@ -1,0 +1,38 @@
+name: Testes de API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Subir a API
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/actuator/health && break
+            sleep 4
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Rodar o testador
+        env:
+          ADMIN_SENHA: ${{ secrets.ADMIN_SENHA }}
+        run: java -jar ferramentas/testador-api.jar qa/ --sem-cor --relatorios relatorios-qa
+
+      - name: Guardar relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-qa
+          path: relatorios-qa/

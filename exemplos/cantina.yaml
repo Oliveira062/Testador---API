@@ -1,0 +1,370 @@
+nome: Cantina Universitária - API
+urlBase: http://localhost:8080
+tempoLimiteMs: 5000
+
+variaveis:
+  senha: Senha123
+  emailCliente: "cliente-${aleatorio}@teste.com"
+  emailOutroCliente: "outro-${aleatorio}@teste.com"
+  emailCozinha: "cozinha-${aleatorio}@teste.com"
+  emailAtendente: "atendente-${aleatorio}@teste.com"
+  adminEmail: admin@cantina.edu.br
+  adminSenha: ${env.ADMIN_SENHA}
+
+cabecalhos:
+  Accept: application/json
+
+cenarios:
+  - nome: Saúde e cardápio público
+    tags: [rapido]
+    passos:
+      - nome: API no ar
+        caminho: /actuator/health
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.status
+              igual: UP
+      - nome: Cardápio sem login
+        caminho: /api/produtos
+        espera:
+          status: 200
+          tempoMaximoMs: 1000
+          corpo:
+            - caminho: $
+              tipo: lista
+            - caminho: $[*].nome
+              contem: Coxinha
+      - nome: Dados da cantina
+        caminho: /api/cantina
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.abertaAgora
+              tipo: booleano
+
+  - nome: Cadastro e login
+    tags: [rapido, auth]
+    passos:
+      - nome: Cliente se cadastra
+        metodo: POST
+        caminho: /api/auth/registrar
+        corpo:
+          nome: Ana Teste
+          email: ${emailCliente}
+          senha: ${senha}
+          matricula: "2024001"
+        espera:
+          status: 201
+          corpo:
+            - caminho: $.perfil
+              igual: CLIENTE
+            - caminho: $.senhaHash
+              existe: false
+      - nome: Cadastro repetido é recusado
+        metodo: POST
+        caminho: /api/auth/registrar
+        corpo:
+          nome: Ana Teste
+          email: ${emailCliente}
+          senha: ${senha}
+        espera:
+          status: 409
+      - nome: Cadastro com dados inválidos
+        metodo: POST
+        caminho: /api/auth/registrar
+        corpo:
+          nome: A
+          email: invalido
+          senha: "123"
+        espera:
+          status: 400
+          corpo:
+            - caminho: $.campos.email
+              existe: true
+            - caminho: $.campos.senha
+              existe: true
+      - nome: Cliente faz login
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${emailCliente}
+          senha: ${senha}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.token
+              regex: "^[\\w-]+\\.[\\w-]+\\.[\\w-]+$"
+        capturar:
+          tokenCliente: $.token
+          idCliente: $.usuario.id
+      - nome: Senha errada
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${emailCliente}
+          senha: errada999
+        espera:
+          status: 401
+          corpo:
+            - caminho: $.mensagem
+              igual: E-mail ou senha inválidos.
+      - nome: Login do administrador
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${adminEmail}
+          senha: ${adminSenha}
+        espera:
+          status: 200
+        capturar:
+          tokenAdmin: $.token
+
+  - nome: Equipe da cantina
+    tags: [auth]
+    passos:
+      - nome: Admin cria conta da cozinha
+        metodo: POST
+        caminho: /api/usuarios
+        token: ${tokenAdmin}
+        corpo:
+          nome: Carla Cozinha
+          email: ${emailCozinha}
+          senha: ${senha}
+          perfil: COZINHA
+        espera:
+          status: 201
+      - nome: Admin cria conta do atendente
+        metodo: POST
+        caminho: /api/usuarios
+        token: ${tokenAdmin}
+        corpo:
+          nome: Davi Atendente
+          email: ${emailAtendente}
+          senha: ${senha}
+          perfil: ATENDENTE
+        espera:
+          status: 201
+      - nome: Login da cozinha
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${emailCozinha}
+          senha: ${senha}
+        capturar:
+          tokenCozinha: $.token
+        espera:
+          status: 200
+      - nome: Login do atendente
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${emailAtendente}
+          senha: ${senha}
+        capturar:
+          tokenAtendente: $.token
+        espera:
+          status: 200
+      - nome: Cliente não acessa gestão de usuários
+        caminho: /api/usuarios
+        token: ${tokenCliente}
+        espera:
+          status: 403
+      - nome: Admin repõe o estoque usado neste teste
+        metodo: POST
+        caminho: /api/produtos/1/estoque
+        token: ${tokenAdmin}
+        corpo:
+          quantidade: 2
+        espera:
+          status: 200
+
+  - nome: Pedido do carrinho à entrega
+    tags: [pedido]
+    passos:
+      - nome: Abrir pedido
+        metodo: POST
+        caminho: /api/pedidos
+        token: ${tokenCliente}
+        espera:
+          status: 201
+          corpo:
+            - caminho: $.situacao
+              igual: CRIADO
+        capturar:
+          pedido: $.numero
+      - nome: Adicionar 2 coxinhas
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/itens
+        token: ${tokenCliente}
+        corpo:
+          codigoProduto: 1
+          quantidade: 2
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.total
+              igual: 12.0
+      - nome: Produto sem estoque é recusado
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/itens
+        token: ${tokenCliente}
+        corpo:
+          codigoProduto: 5
+          quantidade: 1
+        espera:
+          status: 422
+      - nome: Cliente não paga em dinheiro
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/pagamento
+        token: ${tokenCliente}
+        corpo:
+          tipo: DINHEIRO
+          valorRecebido: 20
+        espera:
+          status: 400
+      - nome: Pagar com PIX
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/pagamento
+        token: ${tokenCliente}
+        corpo:
+          tipo: PIX
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.aprovado
+              igual: true
+            - caminho: $.pedido.situacao
+              igual: PAGO
+      - nome: Cliente não marca como pronto
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/pronto
+        token: ${tokenCliente}
+        espera:
+          status: 403
+      - nome: Pedido aparece na fila da cozinha
+        caminho: /api/cozinha/fila
+        token: ${tokenCozinha}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $[*].numero
+              contem: ${pedido}
+      - nome: Cozinha inicia o preparo
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/preparo
+        token: ${tokenCozinha}
+        espera:
+          status: 200
+      - nome: Entrega antes de ficar pronto é bloqueada
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/entrega
+        token: ${tokenAtendente}
+        espera:
+          status: 409
+      - nome: Cozinha marca como pronto
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/pronto
+        token: ${tokenCozinha}
+        espera:
+          status: 200
+      - nome: Atendente entrega
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/entrega
+        token: ${tokenAtendente}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $.situacao
+              igual: ENTREGUE
+      - nome: Pedido entregue não cancela
+        metodo: POST
+        caminho: /api/pedidos/${pedido}/cancelar
+        token: ${tokenAtendente}
+        espera:
+          status: 409
+      - nome: Histórico completo
+        caminho: /api/pedidos/${pedido}/historico
+        token: ${tokenCliente}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $
+              tamanho: 6
+      - nome: Cliente recebeu notificações
+        caminho: /api/notificacoes
+        token: ${tokenCliente}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $[0].mensagem
+              contem: Entregue
+
+  - nome: Isolamento entre clientes
+    tags: [seguranca]
+    passos:
+      - nome: Segundo cliente se cadastra
+        metodo: POST
+        caminho: /api/auth/registrar
+        corpo:
+          nome: Bruno Teste
+          email: ${emailOutroCliente}
+          senha: ${senha}
+        espera:
+          status: 201
+      - nome: Segundo cliente faz login
+        metodo: POST
+        caminho: /api/auth/login
+        corpo:
+          email: ${emailOutroCliente}
+          senha: ${senha}
+        capturar:
+          tokenOutro: $.token
+        espera:
+          status: 200
+      - nome: Não vê o pedido da Ana
+        caminho: /api/pedidos/${pedido}
+        token: ${tokenOutro}
+        espera:
+          status: 404
+      - nome: Não vê o histórico da Ana
+        caminho: /api/pedidos/${pedido}/historico
+        token: ${tokenOutro}
+        espera:
+          status: 404
+      - nome: Lista só os próprios pedidos
+        caminho: /api/pedidos
+        token: ${tokenOutro}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $
+              tamanho: 0
+
+  - nome: Desempenho do cardápio
+    tags: [carga]
+    passos:
+      - nome: 200 consultas com 10 usuários simultâneos
+        caminho: /api/produtos
+        repetir: 200
+        concorrencia: 10
+        espera:
+          status: 200
+          p95MaximoMs: 500
+
+seguranca:
+  rotasProtegidas:
+    - GET /api/pedidos
+    - GET /api/auth/eu
+    - POST /api/pedidos
+    - POST /api/produtos
+    - GET /api/usuarios
+    - GET /api/cozinha/fila
+    - GET /api/notificacoes
+    - PUT /api/cantina
+  cabecalhos:
+    caminho: /api/produtos
+    exigir:
+      - X-Content-Type-Options
+      - X-Frame-Options
+      - Cache-Control
