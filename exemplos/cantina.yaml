@@ -35,6 +35,15 @@ cenarios:
               tipo: lista
             - caminho: $[*].nome
               contem: Coxinha
+      - nome: Interface web no ar
+        caminho: /
+        cabecalhos:
+          Accept: text/html
+        espera:
+          status: 200
+          corpoContem: Cantina Universitária
+          cabecalhos:
+            Content-Security-Policy: "default-src 'self'"
       - nome: Dados da cantina
         caminho: /api/cantina
         espera:
@@ -167,6 +176,19 @@ cenarios:
           status: 200
       - nome: Cliente não acessa gestão de usuários
         caminho: /api/usuarios
+        token: ${tokenCliente}
+        espera:
+          status: 403
+      - nome: Atendente encontra o cliente no balcão
+        caminho: /api/clientes?busca=${emailCliente}
+        token: ${tokenAtendente}
+        espera:
+          status: 200
+          corpo:
+            - caminho: $
+              tamanho: 1
+      - nome: Cliente não usa a busca do balcão
+        caminho: /api/clientes
         token: ${tokenCliente}
         espera:
           status: 403
@@ -362,6 +384,7 @@ seguranca:
     - GET /api/cozinha/fila
     - GET /api/notificacoes
     - PUT /api/cantina
+    - GET /api/clientes
   cabecalhos:
     caminho: /api/produtos
     exigir:
