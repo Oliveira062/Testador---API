@@ -6,11 +6,13 @@ Não depende da linguagem em que a API foi feita: serve para Java, Python, Node,
 ## Gerar e executar
 
 ```bash
-./mvnw package
+mvn package
 java -jar target/testador-api.jar exemplos/modelo.yaml
 ```
 
 Ou use `./testar.sh` (Linux/macOS) ou `testar.bat` (Windows), que geram o jar na primeira vez.
+
+É preciso ter o JDK 21 e o Maven 3.9 ou mais novo instalados.
 
 ## O que ela faz
 

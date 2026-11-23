@@ -4,7 +4,7 @@ set JAR=%PASTA%target\testador-api.jar
 if not exist "%JAR%" (
   echo Gerando o testador-api.jar pela primeira vez...
   pushd "%PASTA%"
-  call mvnw.cmd -q package -DskipTests
+  call mvn -q package -DskipTests
   popd
 )
 java -jar "%JAR%" %*
