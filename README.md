@@ -3,9 +3,6 @@
 Ferramenta de linha de comando para testar qualquer API REST a partir de arquivos YAML ou JSON.
 Não depende da linguagem em que a API foi feita: serve para Java, Python, Node, PHP ou o que for.
 
-O manual completo, com a explicação de cada parte do código e de cada recurso, está no PDF que
-acompanha a ferramenta.
-
 ## Gerar e executar
 
 ```bash
